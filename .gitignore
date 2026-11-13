@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Local configuration (your Discord Application ID)
+helper/config.json
+.env
+
+# Test artifacts and logs
+test/*-output.txt
+*.log
+
+# Packaging
+*.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
