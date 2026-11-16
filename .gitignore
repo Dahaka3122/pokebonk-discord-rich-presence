@@ -9,8 +9,9 @@ helper/config.json
 test/*-output.txt
 *.log
 
-# Packaging
+# Packaging / build output
 *.zip
+dist/
 
 # OS / editor
 .DS_Store

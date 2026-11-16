@@ -1,8 +1,8 @@
 # PokéBonk Discord Rich Presence
 
-Show what you're doing in browser version of [PokéBonk](https://pokebonk.com) on your Discord profile: your current Pokémon, level, map, zone, difficulty, weather, KO count and run timer. It also shows when you're in the menu, picking a Pokémon, choosing a map, browsing the Pokédex, preparing for an event or setting up a Co-op run.
+Show what you're doing in [PokéBonk](https://pokebonk.com) on your Discord profile: your current Pokémon, level, map, zone, difficulty, weather, KO count and run timer. It also shows when you're in the menu, picking a Pokémon, choosing a map, browsing the Pokédex, preparing for an event or setting up a Co-op run.
 
-> **Unofficial fan project.** Not affiliated with or endorsed by the PokéBonk developer, Nintendo, Game Freak or The Pokémon Company. It only *reads* what is already on your screen, it does not modify the game, automate anything or touch your account.
+> **Unofficial fan project.** Not affiliated with or endorsed by the PokéBonk developer, Nintendo, Game Freak or The Pokémon Company. It only *reads* what is already on your screen; it does not modify the game, automate anything or touch your account.
 
 ```
 Playing PokéBonk
@@ -26,11 +26,11 @@ Viridian Forest · Zone 1/3 · Normal · Rain
 | Co-op (entry or lobby) | `Setting up a Co-op run` / `Waiting in a Co-op lobby` | `Playing with friends` | Last Pokémon you used |
 | Any other menu screen | `Browsing the menus` | `Between runs` | Last Pokémon you used |
 
-Map effects shown next to the weather (curses, Gengar, Rhydon's Roar…) are intentionally ignored, only the weather itself (Rain, Scorching Sun…) is shown.
+Map effects shown next to the weather (curses, Gengar, Rhydon's Roar…) are intentionally ignored; only the weather itself (Rain, Scorching Sun…) is shown.
 
 "Any other menu screen" covers Lab, Builds, Achievements, Tasks, Shop, Treasures, Settings, Apps, News, leaderboards, Friends, Mailbox, Trainer card and Clan. **Nothing is read from these screens**, because several of them show private data (friends, mail, clan, rankings). The Co-op lobby shows neither the room code nor the player names.
 
-The Co-op *in-run* HUD has not been implemented yet.
+The Co-op *in-run* HUD has not been tested (it needs two or more players). If its layout differs from a normal run, the presence may disappear until the run ends; an issue with its HUD markup would be very welcome.
 
 ## How it works
 
@@ -46,7 +46,7 @@ A web page can't talk to Discord directly, so a tiny local helper does it. The h
 ## Requirements
 
 - Discord **desktop app** running (the web version has no Rich Presence IPC)
-- [Node.js](https://nodejs.org) 18 or newer
+- [Node.js](https://nodejs.org) 18 or newer, only if you run the helper from source (not needed with the Windows `.exe`)
 - A Chromium-based browser (Chrome, Edge, Brave…). Firefox is untested.
 
 ## Installation
@@ -58,6 +58,16 @@ A web page can't talk to Discord directly, so a tiny local helper does it. The h
 3. Copy the **Application ID** from *General Information*.
 
 ### 2. Start the helper
+
+**Option A: Windows executable (no Node.js needed)**
+
+1. Download `pokebonk-presence-helper.exe` from the [latest release](../../releases/latest) and put it in any folder.
+2. If the release has no Application ID built in (the release notes say so), create a file named `config.json` next to the `.exe` containing `{"clientId": "123456789012345678"}` with your own ID. Otherwise skip this.
+3. Double-click it. A console window opens in which you should see `Discord: connected as <your name>`. Closing the window stops the helper.
+
+Windows SmartScreen may warn about an unsigned app ("Windows protected your PC"): click *More info → Run anyway*. The executable is just Node.js plus `helper/server.js`, built by the public workflow in `.github/workflows/release.yml`. You can compare its SHA-256 with `SHA256SUMS.txt` from the release (`Get-FileHash pokebonk-presence-helper.exe` in PowerShell), or build it yourself, see [CONTRIBUTING](CONTRIBUTING.md#building-the-exe-and-releasing).
+
+**Option B: from source**
 
 ```bash
 cd helper
@@ -76,7 +86,7 @@ $env:DISCORD_CLIENT_ID="123456789012345678"; node server.js   # PowerShell
 ### 3. Load the extension
 
 1. Open `chrome://extensions` and enable **Developer mode**.
-2. Click **Load unpacked** and select the `extension` folder.
+2. Click **Load unpacked** and select the `extension` folder (if you downloaded `pokebonk-presence-extension.zip` from the release, unzip it first and select the unzipped folder).
 3. Open PokéBonk. Your presence should appear within a few seconds.
 
 Keep the helper running while you play. If you reload the extension, refresh the game tab too.
@@ -118,16 +128,16 @@ Screens are recognised by CSS classes (not by text, so it works in every UI lang
 3. Add the new `screen` value to the list in `sanitize()` (plus any new fields) and handle it in `buildActivity()` in `helper/server.js`.
 4. Add checks to `test/parser.test.js` and `test/e2e.test.js`.
 
-Pause and "run over" are not screens, they are modals on top of the run HUD, detected in `parseHud()` as `phase: 'paused' | 'ended'`.
+Pause and "run over" are not screens: they are modals on top of the run HUD, detected in `parseHud()` as `phase: 'paused' | 'ended'`.
 
-If a game update breaks something, it is almost always a renamed CSS class in `parser.js`, the selectors are all in one place.
+If a game update breaks something, it is almost always a renamed CSS class in `parser.js`; the selectors are all in one place.
 
 ## Troubleshooting
 
-- **Nothing shows up** – open the helper's `http://127.0.0.1:8765/health`, it should report `"discordReady": true`. If it's `false`, make sure the Discord desktop app is running (not just the browser version) and that activity sharing is enabled in Discord's *Activity Privacy* settings.
+- **Nothing shows up** – open the helper's `http://127.0.0.1:8765/health`; it should report `"discordReady": true`. If it's `false`, make sure the Discord desktop app is running (not just the browser version) and that activity sharing is enabled in Discord's *Activity Privacy* settings.
 - **Helper is fine but no updates arrive** – reload the extension on `chrome://extensions`, then refresh the game tab. Check the service worker's console for errors.
-- **No Pokémon image** – Discord loads it from GitHub so it can take a moment, and some Discord clients are slower to render external images.
-- **Timer stops or restarts after a pause** – This is expected, the timer is hidden while paused or after the run ends, and restarts from the game clock when you resume.
+- **No Pokémon image** – Discord loads it from GitHub; it can take a moment, and some Discord clients are slower to render external images.
+- **Timer stops or restarts after a pause** – expected: the timer is hidden while paused or after the run ends, and restarts from the game clock when you resume.
 
 ## Tests
 
@@ -140,13 +150,17 @@ npm test
 - `test/parser.test.js` runs the parser in a real browser against trimmed copies of the game's markup.
 - `test/e2e.test.js` loads the extension in Chromium, runs the helper and uses a **fake Discord IPC server** to check the exact activity payloads. It never touches the real game or your Discord.
 
-The end-to-end test needs a Chromium that still supports `--load-extension` (Playwright's Chromium and Chrome for Testing will do, recent branded Chrome builds don't).
+The end-to-end test needs a Chromium that still supports `--load-extension` (Playwright's Chromium and Chrome for Testing do; recent branded Chrome builds don't).
 
 ## Privacy and security
 
 - The helper listens on `127.0.0.1` only and rejects requests whose `Origin` isn't a browser extension, so websites can't talk to it.
 - The only data sent to Discord is what you see in the presence above. No account data, tokens or save files are read.
 - The extension only runs on `pokebonk.com`.
+
+## Contributing
+
+Bug reports, fixes after game updates and new screens are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up, run the tests and send a pull request.
 
 ## License
 

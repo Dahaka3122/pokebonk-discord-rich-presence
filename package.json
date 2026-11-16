@@ -4,14 +4,19 @@
   "description": "Discord Rich Presence for PokéBonk: browser extension + local Node.js helper",
   "private": true,
   "license": "MIT",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node helper/server.js",
     "test": "node test/parser.test.js && node test/e2e.test.js",
     "test:parser": "node test/parser.test.js",
-    "test:e2e": "node test/e2e.test.js"
+    "test:e2e": "node test/e2e.test.js",
+    "build:exe": "node scripts/build-exe.js"
   },
   "devDependencies": {
-    "playwright": "^1.63.0"
+    "playwright": "^1.63.0",
+    "postject": "^1.0.0-alpha.6",
+    "rcedit": "^4.0.0"
   }
 }

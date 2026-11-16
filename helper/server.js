@@ -10,12 +10,27 @@ const path = require('path');
 const crypto = require('crypto');
 
 // ---------- configuration ----------
+// When packaged as a single executable (Node SEA, see scripts/build-exe.js) there is no source
+// directory: config.json is looked up next to the .exe and a default ID may be embedded at build time.
+let sea = null;
+try {
+  const s = require('node:sea');
+  if (s.isSea()) sea = s;
+} catch (_) { /* normal Node run (or Node < 20.12) */ }
+const baseDir = sea ? path.dirname(process.execPath) : __dirname;
+
 let fileCfg = {};
 try {
-  fileCfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
+  fileCfg = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
 } catch (_) { /* config.json is optional */ }
 
-const CLIENT_ID = process.env.DISCORD_CLIENT_ID || fileCfg.clientId || '';
+let bundledCfg = {};
+if (sea) {
+  try { bundledCfg = JSON.parse(sea.getAsset('default-config.json', 'utf8')); } catch (_) { /* nothing embedded */ }
+}
+
+// Priority: environment variable > config.json next to the helper > ID embedded in the .exe.
+const CLIENT_ID = process.env.DISCORD_CLIENT_ID || fileCfg.clientId || bundledCfg.clientId || '';
 const PORT = parseInt(process.env.PORT || fileCfg.port || '8765', 10);
 const MIN_UPDATE_MS = parseInt(process.env.MIN_UPDATE_MS || '15000', 10); // Discord limit: ~1 update / 15 s
 const STALE_MS = parseInt(process.env.STALE_MS || '20000', 10);           // clear the presence after this long without data
@@ -24,9 +39,25 @@ const SPRITE_URL = (dex) =>
 
 const log = (...a) => console.log(new Date().toLocaleTimeString(), ...a);
 
-if (!CLIENT_ID) {
-  console.error('Missing Discord Application ID. Set DISCORD_CLIENT_ID or put "clientId" in helper/config.json.');
-  process.exit(1);
+// Print an error and exit. In the .exe the console window would vanish instantly on double-click,
+// so wait for Enter first.
+function fatal(message) {
+  console.error(message);
+  if (sea && process.stdin.isTTY) {
+    console.error('\nPress Enter to close.');
+    process.stdin.once('data', () => process.exit(1));
+  } else {
+    process.exit(1);
+  }
+}
+
+const CONFIG_OK = /^\d{15,25}$/.test(CLIENT_ID);
+if (!CONFIG_OK) {
+  fatal(
+    (CLIENT_ID ? 'The Discord Application ID is not valid (it should be a long number).' : 'Missing Discord Application ID.') +
+    '\nSet DISCORD_CLIENT_ID, or put {"clientId": "123456789012345678"} in a config.json next to ' +
+    (sea ? 'this program' : 'helper/server.js') + '.',
+  );
 }
 
 // ---------- Discord IPC client ----------
@@ -338,7 +369,7 @@ setInterval(() => {
 // ---------- HTTP server ----------
 const server = http.createServer((req, res) => {
   const origin = req.headers.origin;
-  // Only accept requests from the extension (or without an Origin, e.g. curl) - never from random websites.
+  // Only accept requests from the extension (or without an Origin, e.g. curl) - never, ever, from random websites.
   if (origin && !/^(chrome|moz)-extension:\/\//.test(origin)) {
     res.writeHead(403).end();
     return;
@@ -365,9 +396,12 @@ const server = http.createServer((req, res) => {
   res.writeHead(404).end();
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  log(`Helper listening on http://127.0.0.1:${PORT}`);
-  ipc.connect();
-});
+// In the .exe, fatal() only waits for Enter, so make sure nothing starts with an invalid ID.
+if (CONFIG_OK) {
+  server.listen(PORT, '127.0.0.1', () => {
+    log(`Helper listening on http://127.0.0.1:${PORT}`);
+    ipc.connect();
+  });
+}
 
 process.on('SIGINT', () => { try { ipc.setActivity(null); } catch (_) {} setTimeout(() => process.exit(0), 200); });
