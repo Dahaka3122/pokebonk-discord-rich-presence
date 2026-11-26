@@ -6,6 +6,8 @@ const net = require('net');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
+const http = require('http');
 const assert = require('assert');
 const { spawn } = require('child_process');
 
@@ -13,6 +15,62 @@ const root = path.join(__dirname, '..');
 const fx = (name) => fs.readFileSync(path.join(__dirname, 'fixtures', name), 'utf8');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pbp-'));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const addr = srv.address();
+      srv.close((err) => (err ? reject(err) : resolve(addr.port)));
+    });
+  });
+}
+
+function getHealth(port) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(`http://127.0.0.1:${port}/health`, (res) => {
+      let body = '';
+      res.on('data', (d) => { body += d; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(1000, () => req.destroy(new Error('health timeout')));
+  });
+}
+
+async function waitForHelperHealth(port, helperProc, ms = 10000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    if (helperProc.exitCode !== null) {
+      throw new Error(`Helper exited prematurely with code ${helperProc.exitCode}`);
+    }
+    try {
+      const h = await getHealth(port);
+      if (h && h.ok && h.discordReady) return;
+    } catch (_) {}
+    await sleep(100);
+  }
+  throw new Error('Timeout waiting for helper /health + discordReady');
+}
+
+function stageExtension(port) {
+  const extDir = path.join(tmp, 'extension');
+  fs.cpSync(path.join(root, 'extension'), extDir, { recursive: true });
+  const bgPath = path.join(extDir, 'background.js');
+  const mfPath = path.join(extDir, 'manifest.json');
+  fs.writeFileSync(
+    bgPath,
+    fs.readFileSync(bgPath, 'utf8').replace('http://127.0.0.1:8765/state', `http://127.0.0.1:${port}/state`),
+  );
+  fs.writeFileSync(
+    mfPath,
+    fs.readFileSync(mfPath, 'utf8').replace('http://127.0.0.1:8765/*', `http://127.0.0.1:${port}/*`),
+  );
+  return extDir;
+}
 
 // --- fake Discord: same IPC protocol as the real client ---
 const received = [];
@@ -49,27 +107,54 @@ async function waitFor(pred, what, ms = 15000) {
 }
 
 (async () => {
-  await new Promise((r) => fake.listen(path.join(tmp, 'discord-ipc-0'), r));
-
-  const helper = spawn('node', [path.join(root, 'helper', 'server.js')], {
-    env: { ...process.env, DISCORD_CLIENT_ID: '123456789012345678', XDG_RUNTIME_DIR: tmp, MIN_UPDATE_MS: '500', STALE_MS: '4000' },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  let ctx = null;
+  let helper = null;
+  let fakeListening = false;
   let helperLog = '';
-  helper.stdout.on('data', (d) => (helperLog += d));
-  helper.stderr.on('data', (d) => (helperLog += d));
-
-  const ctx = await chromium.launchPersistentContext(path.join(tmp, 'profile'), {
-    executablePath: process.env.CHROME_PATH || undefined,
-    headless: false, // extensions need the new headless mode, enabled by the flag below
-    args: [...(process.getuid && process.getuid() === 0 ? ['--no-sandbox'] : []),
-      '--headless=new',
-      `--disable-extensions-except=${path.join(root, 'extension')}`,
-      `--load-extension=${path.join(root, 'extension')}`],
-  });
-
   let ok = false;
+
   try {
+    const port = await getFreePort();
+    const ipcPath = process.platform === 'win32'
+      ? `\\\\.\\pipe\\pbp-e2e-${process.pid}-${crypto.randomBytes(6).toString('hex')}`
+      : path.join(tmp, 'discord-ipc-0');
+    const extDir = stageExtension(port);
+
+    await new Promise((resolve, reject) => {
+      fake.once('error', reject);
+      fake.listen(ipcPath, () => {
+        fake.removeListener('error', reject);
+        fakeListening = true;
+        resolve();
+      });
+    });
+
+    helper = spawn('node', [path.join(root, 'helper', 'server.js')], {
+      env: {
+        ...process.env,
+        DISCORD_CLIENT_ID: '123456789012345678',
+        DISCORD_IPC_PATH: ipcPath,
+        PORT: String(port),
+        MIN_UPDATE_MS: '500',
+        STALE_MS: '8000',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    helper.stdout.on('data', (d) => (helperLog += d));
+    helper.stderr.on('data', (d) => (helperLog += d));
+    const helperErr = new Promise((_, reject) => helper.once('error', reject));
+    helperErr.catch(() => {});
+
+    await Promise.race([waitForHelperHealth(port, helper), helperErr]);
+
+    ctx = await chromium.launchPersistentContext(path.join(tmp, 'profile'), {
+      executablePath: process.env.CHROME_PATH || undefined,
+      headless: false, // extensions need the new headless mode, enabled by the flag below
+      args: [...(process.getuid && process.getuid() === 0 ? ['--no-sandbox'] : []),
+        '--headless=new',
+        `--disable-extensions-except=${extDir}`,
+        `--load-extension=${extDir}`],
+    });
     await ctx.route('https://pokebonk.com/**', (route) =>
       route.fulfill({ status: 200, contentType: 'text/html', body: fx('hud.html') }));
     const page = await ctx.newPage();
@@ -181,6 +266,59 @@ async function waitFor(pred, what, ms = 15000) {
     assert.strictEqual(evh.details, 'Preparing for The Great Expedition');
     assert.strictEqual(evh.state, 'Limited-time event');
 
+    const evm = await swap('event-mewtwo.html');
+    show('7b) Seasonal event (Mewtwo Strikes Back):', evm);
+    assert.strictEqual(evm.details, 'Preparing for Mewtwo Strikes Back');
+    assert.strictEqual(evm.state, 'Boss Rush');
+    assert.ok(evm.assets.large_image.endsWith('/1.png'));
+    assert.strictEqual(evm.assets.large_text, 'Mewtwo Strikes Back');
+
+    const exp = await swap('expedition-menu.html');
+    show('7c) Expedition mode menu:', exp);
+    assert.strictEqual(exp.details, 'Preparing for The Great Expedition');
+    assert.strictEqual(exp.state, 'Wild Valley · Solo');
+    assert.ok(exp.assets.large_image.endsWith('/63.png'));
+    assert.strictEqual(exp.assets.large_text, 'The Great Expedition · Wild Valley');
+
+    const exps = await swap('expedition-safari.html');
+    show('7d) Expedition run (Safari Zone):', exps);
+    assert.strictEqual(exps.details, 'Abra · Lv. 1 · K.Os 2');
+    assert.strictEqual(exps.state, 'Safari Zone · Phase 1/3 · Expedition · Mist');
+    assert.ok(age(exps) > 10 && age(exps) < 40, 'got ' + age(exps));
+
+    const mutm = await swap('mutation-menu.html');
+    show('7e) Daily Mutation menu:', mutm);
+    assert.strictEqual(mutm.details, 'Daily Mutation');
+    assert.strictEqual(mutm.state, 'Stampede · Hard');
+    assert.ok(!JSON.stringify(mutm).includes('FakeLeader'), 'leaderboard names must not leak');
+    assert.ok(mutm.assets.large_image.endsWith('/63.png'));
+    assert.strictEqual(mutm.assets.large_text, 'Stampede');
+
+    const mutr = await swap('mutation-run.html');
+    show('7f) Daily Mutation run:', mutr);
+    assert.strictEqual(mutr.details, 'Abra · Lv. 6 · K.Os 60');
+    assert.strictEqual(mutr.state, 'Rocky Desert · Zone 1/3 · Stampede · Hard');
+    assert.ok(age(mutr) > 50 && age(mutr) < 80, 'got ' + age(mutr));
+
+    const rel = await swap('relay-run.html');
+    show('7g) Relay run:', rel);
+    assert.strictEqual(rel.details, 'Abra · Lv. 7 · K.Os 166');
+    assert.strictEqual(rel.state, 'Ilex Forest · Phase 1/3 · Relay · Rain');
+    assert.ok(age(rel) > 22 && age(rel) < 55, 'got ' + age(rel));
+
+    const br = await swap('boss-rush-run.html');
+    show('7h) Boss Rush run (Mewtwo Strikes Back):', br);
+    assert.strictEqual(br.details, 'Abra · Lv. 3 · K.Os 4');
+    assert.strictEqual(br.state, 'Storm Pier · Zone 1/10 · Boss Rush');
+    assert.ok(age(br) > 15 && age(br) < 45, 'got ' + age(br));
+
+    const coopRun = await swap('coop-run.html');
+    show('7i) Co-op run:', coopRun);
+    assert.strictEqual(coopRun.details, 'Abra · Lv. 1 · K.Os 6');
+    assert.strictEqual(coopRun.state, 'Viridian Forest · Zone 1/3 · Co-op · Normal');
+    assert.ok(age(coopRun) > 18 && age(coopRun) < 50, 'got ' + age(coopRun));
+    assert.ok(!JSON.stringify(coopRun).includes('FakeTeammate'), 'teammate names must not leak');
+
     const ce = await swap('coop-entry.html');
     assert.strictEqual(ce.details, 'Setting up a Co-op run');
     const cl = await swap('coop-lobby.html');
@@ -192,12 +330,12 @@ async function waitFor(pred, what, ms = 15000) {
     show('9) Any other menu (Lab):', lb);
     assert.strictEqual(lb.details, 'Browsing the menus');
     assert.strictEqual(lb.state, 'Between runs');
-    assert.ok(lb.assets.large_image.endsWith('/1.png'));
+    assert.ok(lb.assets.large_image.endsWith('/63.png'));
 
-    // Closing the tab -> presence cleared after STALE_MS
+    // Closing the tab -> presence cleared immediately (strictly faster than STALE_MS=8000)
     const m = received.length;
     await page.close();
-    await waitFor(() => received.length > m && received[received.length - 1] === null, 'presence cleared', 10000);
+    await waitFor(() => received.length > m && received[received.length - 1] === null, 'presence cleared', 3000);
     console.log('\n10) After closing the tab: presence cleared (SET_ACTIVITY with activity=null)');
 
     ok = true;
@@ -206,9 +344,17 @@ async function waitFor(pred, what, ms = 15000) {
     console.error('E2E FAIL:', e.message);
     console.error('--- helper log ---\n' + helperLog);
   } finally {
-    await ctx.close();
-    helper.kill();
-    fake.close();
+    if (ctx) await ctx.close().catch(() => {});
+    if (helper && helper.exitCode === null) {
+      helper.kill();
+      await Promise.race([
+        new Promise((r) => helper.once('exit', r)),
+        sleep(2000),
+      ]);
+    }
+    if (fakeListening) {
+      await new Promise((r) => fake.close(() => r()));
+    }
     fs.rmSync(tmp, { recursive: true, force: true });
     if (ok) console.log('\n--- helper log ---\n' + helperLog);
     process.exit(ok ? 0 : 1);

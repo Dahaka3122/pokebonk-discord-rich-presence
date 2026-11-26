@@ -15,22 +15,22 @@ Viridian Forest · Zone 1/3 · Normal · Rain
 
 | Where you are | Line 1 | Line 2 | Icon (hover text) |
 |---|---|---|---|
-| In a run (Classic, Survival, event) | `Pokémon · Lv. N · K.Os N` | `Map · Zone x/y · Difficulty · Weather` (`Phase x/y` in Survival and events) | Current Pokémon (`Name (Type)`), run timer |
+| In a run (Classic, Survival, Relay, Co-op, Daily Mutation, Expedition, Boss Rush) | `Pokémon · Lv. N · K.Os N` | `Map · Zone x/y · Difficulty · Weather` (`Phase x/y` in Survival, Relay and Expedition; `Co-op · Normal` in Co-op; `Stampede · Hard` in Daily Mutation; `Boss Rush` in event runs) | Current Pokémon (`Name (Type)`), run timer |
 | Run paused | same as above | `Paused · Map · Zone …` | same, **timer hidden** while paused |
 | Run over | same as above | `Run ended · Map · Zone …` | same, timer hidden |
 | Main menu | `In the main menu` | `Getting ready for a run` | Your partner Pokémon (`League 79/138 · Pokédex 234/251`) |
 | Pokémon selection | `Choosing my Pokémon` | `Looking at Bulbasaur · Healer` | The Pokémon you're looking at |
 | Map selection | `Choosing a map with Bulbasaur` | `Viridian Forest · Normal · Classic` | Your Pokémon (`Kanto · Viridian Forest`) |
+| Daily Mutation | `Daily Mutation` | `Stampede · Hard` | Last Pokémon you used (`Stampede`) |
+| Expedition mode | `Preparing for The Great Expedition` | `Wild Valley · Solo` | Chosen Pokémon (`The Great Expedition · Wild Valley`) |
 | Pokédex / Research Notebook | `Browsing the Pokédex` | `250/251 seen` or `Research Notebook · 125/129 families` | Last Pokémon you used |
-| Event (home or preparation) | `Preparing for The Great Expedition` | `Limited-time event` | Last Pokémon you used |
+| Event (seasonal or preparation) | `Preparing for Mewtwo Strikes Back` | `Boss Rush` or `Limited-time event` | Last Pokémon you used |
 | Co-op (entry or lobby) | `Setting up a Co-op run` / `Waiting in a Co-op lobby` | `Playing with friends` | Last Pokémon you used |
 | Any other menu screen | `Browsing the menus` | `Between runs` | Last Pokémon you used |
 
 Map effects shown next to the weather (curses, Gengar, Rhydon's Roar…) are intentionally ignored; only the weather itself (Rain, Scorching Sun…) is shown.
 
-"Any other menu screen" covers Lab, Builds, Achievements, Tasks, Shop, Treasures, Settings, Apps, News, leaderboards, Friends, Mailbox, Trainer card and Clan. **Nothing is read from these screens**, because several of them show private data (friends, mail, clan, rankings). The Co-op lobby shows neither the room code nor the player names.
-
-The Co-op *in-run* HUD has not been tested (it needs two or more players). If its layout differs from a normal run, the presence may disappear until the run ends; an issue with its HUD markup would be very welcome.
+"Any other menu screen" covers Lab, Builds, Achievements, Tasks, Shop, Treasures, Settings, Apps, News, leaderboards, Friends, Mailbox, Trainer card and Clan. **Nothing is read from these screens**, because several of them show private data (friends, mail, clan, rankings). Neither the Co-op lobby nor Co-op runs ever expose room codes or player names.
 
 ## How it works
 
@@ -46,7 +46,7 @@ A web page can't talk to Discord directly, so a tiny local helper does it. The h
 ## Requirements
 
 - Discord **desktop app** running (the web version has no Rich Presence IPC)
-- [Node.js](https://nodejs.org) 18 or newer, only if you run the helper from source (not needed with the Windows `.exe`)
+- [Node.js](https://nodejs.org) 18 or newer to run the helper from source (not needed with the Windows `.exe`), or **20.12+** to run tests and build the `.exe`
 - A Chromium-based browser (Chrome, Edge, Brave…). Firefox is untested.
 
 ## Installation
@@ -100,7 +100,7 @@ Set these as environment variables or (for the first two) in `helper/config.json
 | `DISCORD_CLIENT_ID` / `clientId` | – (required) | Your Discord Application ID |
 | `PORT` / `port` | `8765` | Helper port. If you change it, also change `HELPER_URL` in `extension/background.js` and `host_permissions` in `extension/manifest.json` |
 | `MIN_UPDATE_MS` | `15000` | Minimum time between presence updates (Discord rate-limits at about one per 15 s) |
-| `STALE_MS` | `20000` | Clear the presence after this long without data from the game |
+| `STALE_MS` | `90000` | Clear the presence after this long without data from the game (closing the game tab clears it immediately) |
 
 Pokémon images are loaded from the [PokeAPI sprites](https://github.com/PokeAPI/sprites) repository. If you'd rather host your own, change `SPRITE_URL` in `helper/server.js`.
 
@@ -147,6 +147,7 @@ npx playwright install chromium     # or set CHROME_PATH to a Chromium / Chrome 
 npm test
 ```
 
+- `test/helper.test.js` runs unit and integration tests on the local helper (config validation, UTF-8 chunking, IPC connection safety, and clear/sanitization behavior).
 - `test/parser.test.js` runs the parser in a real browser against trimmed copies of the game's markup.
 - `test/e2e.test.js` loads the extension in Chromium, runs the helper and uses a **fake Discord IPC server** to check the exact activity payloads. It never touches the real game or your Discord.
 

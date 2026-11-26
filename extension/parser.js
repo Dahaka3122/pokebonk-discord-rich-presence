@@ -42,7 +42,11 @@
     const zm = /(\d+)\s*\/\s*(\d+)/.exec(zoneText);
     // Normal runs say "Zone 1/3", Survival and the event say "Phase 1/3": keep the game's own wording.
     const zoneLabel = zm ? zoneText : '';
-    const tier = txt(top && top.querySelector('.ht-tier'));
+    const hudEl = doc.querySelector('#hud');
+    const coop = Boolean(hudEl && hudEl.querySelector('.coop-team'));
+    const tier = hudEl && hudEl.classList.contains('rush')
+      ? 'Boss Rush'
+      : txt(top && top.querySelector('.ht-tier'));
     const weatherEl = top && top.querySelector('.ht-weather');
     // Only the direct text node ("Rain"); map effects (Curse, Gengar, Rhydon...) are <em> children.
     const weather = visible(weatherEl)
@@ -74,6 +78,7 @@
       zones: zm ? parseInt(zm[2], 10) : null,
       zoneLabel,
       tier,
+      coop,
       weather,
       runMs,
       phase,
@@ -144,14 +149,44 @@
     };
   }
 
-  // Limited-time event: its home screen and the preparation screen ("Bill's PC").
+  // Limited-time / seasonal event: home screen, legacy preparation screen ("Bill's PC"), or Boss Rush (.brs).
   function parseEvent(doc) {
-    const el = doc.querySelector('.screen.ev-scr, .screen.ex');
+    const el = doc.querySelector('.screen.ev-scr, .screen.ex, .screen.brs');
     if (!el) return null;
+    if (el.classList.contains('brs')) {
+      const mode = txt(el.querySelector('.br-hero-tx h2'));
+      const res = { screen: 'event', event: txt(el.querySelector('.scr-title h1')) };
+      if (mode) res.mode = mode;
+      return res;
+    }
     const name = el.classList.contains('ex')
       ? txt(el.querySelector('.scr-title span'))
       : txt(el.querySelector('.exv-hero h1'));
     return { screen: 'event', event: name };
+  }
+
+  // Permanent Expedition mode menu ("The Great Expedition"). Leaderboard tab is never read.
+  function parseExpedition(doc) {
+    const el = doc.querySelector('.screen.ex.exb');
+    if (!el) return null;
+    return {
+      screen: 'expedition',
+      event: txt(el.querySelector('.scr-title h1')),
+      map: txt(el.querySelector('.exb-mapcard.on b')),
+      mode: txt(el.querySelector('.exb-party button.on span')),
+      dex: portraitDex(el.querySelector('.exb-mon img')),
+    };
+  }
+
+  // Daily Mutation screen. Leaderboard (.mu-board) is deliberately NOT read.
+  function parseMutation(doc) {
+    const el = doc.querySelector('.screen.mu-scr');
+    if (!el) return null;
+    return {
+      screen: 'mutation',
+      mutation: txt(el.querySelector('.mu-name')),
+      tier: txt(el.querySelector('.mu-tier')),
+    };
   }
 
   // Co-op entry and lobby. Room code and player names are deliberately NOT read.
@@ -174,14 +209,16 @@
     if (vis(doc.querySelector('.screen.ls'))) return parseLeague(doc);
     if (vis(doc.querySelector('.screen.mm'))) return parseMenu(doc);
     if (vis(doc.querySelector('.screen.dx, .screen.rs'))) return parseDex(doc);
-    if (vis(doc.querySelector('.screen.ev-scr, .screen.ex'))) return parseEvent(doc);
+    if (vis(doc.querySelector('.screen.mu-scr'))) return parseMutation(doc);
+    if (vis(doc.querySelector('.screen.ex.exb'))) return parseExpedition(doc);
+    if (vis(doc.querySelector('.screen.ev-scr, .screen.ex, .screen.brs'))) return parseEvent(doc);
     if (vis(doc.querySelector('.screen.cp'))) return parseCoop(doc);
     if (vis(doc.querySelector('.screen'))) return parseOther(doc);
     const hud = parseHud(doc);
     return hud ? { screen: 'game', ...hud } : null;
   }
 
-  const api = { parseHud, parseMenu, parseLeague, parseMap, parseDex, parseEvent, parseCoop, parseOther, parseState, parseClock };
+  const api = { parseHud, parseMenu, parseLeague, parseMap, parseDex, parseEvent, parseExpedition, parseMutation, parseCoop, parseOther, parseState, parseClock };
   root.PokebonkParser = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

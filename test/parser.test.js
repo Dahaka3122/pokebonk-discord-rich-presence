@@ -37,6 +37,7 @@ const launchOpts = {
   check('map', () => assert.strictEqual(game.biome, 'Viridian Forest'));
   check('zone 1/3', () => { assert.strictEqual(game.zone, 1); assert.strictEqual(game.zones, 3); });
   check('difficulty = Normal', () => assert.strictEqual(game.tier, 'Normal'));
+  check('solo run -> coop = false', () => assert.strictEqual(game.coop, false));
   check('weather is just "Rain", without map effects (Gengar/Curse/Rhydon)', () => assert.strictEqual(game.weather, 'Rain'));
   check('run clock 3:40.8 = 220800 ms (not the 6:19 countdown, not the record)', () => assert.strictEqual(game.runMs, 220800));
   check('no KO counter in the fixture -> null', () => assert.strictEqual(game.kos, null));
@@ -163,6 +164,82 @@ const launchOpts = {
   check('event home: name from the hero heading', () => assert.deepStrictEqual(evHome, { screen: 'event', event: 'The Great Expedition' }));
   const evPrep = await stateOf('event-prep.html');
   check("event preparation (Bill's PC): name from the title", () => assert.deepStrictEqual(evPrep, { screen: 'event', event: 'The Great Expedition' }));
+  const evMewtwo = await stateOf('event-mewtwo.html');
+  check('seasonal event (Boss Rush / Mewtwo Strikes Back)', () => assert.deepStrictEqual(evMewtwo, { screen: 'event', event: 'Mewtwo Strikes Back', mode: 'Boss Rush' }));
+  const expMenu = await stateOf('expedition-menu.html');
+  check('expedition mode menu (Great Expedition, map, mode, dex)', () => assert.deepStrictEqual(expMenu, {
+    screen: 'expedition',
+    event: 'The Great Expedition',
+    map: 'Wild Valley',
+    mode: 'Solo',
+    dex: 63,
+  }));
+  const expSafari = await stateOf('expedition-safari.html');
+  check('expedition run (Safari Zone, Phase 1/3, Mist weather)', () => {
+    assert.strictEqual(expSafari.screen, 'game');
+    assert.strictEqual(expSafari.biome, 'Safari Zone');
+    assert.strictEqual(expSafari.zoneLabel, 'Phase 1/3');
+    assert.strictEqual(expSafari.tier, 'Expedition');
+    assert.strictEqual(expSafari.weather, 'Mist');
+    assert.strictEqual(expSafari.kos, '2');
+    assert.strictEqual(expSafari.runMs, 11500);
+  });
+  const mutMenu = await stateOf('mutation-menu.html');
+  check('daily mutation menu (name and tier, leaderboard ignored)', () => {
+    assert.deepStrictEqual(mutMenu, { screen: 'mutation', mutation: 'Stampede', tier: 'Hard' });
+    assert.ok(!JSON.stringify(mutMenu).includes('FakeLeader'));
+  });
+  const mutRun = await stateOf('mutation-run.html');
+  check('daily mutation run (Stampede · Hard, hidden Clear weather ignored)', () => {
+    assert.strictEqual(mutRun.screen, 'game');
+    assert.strictEqual(mutRun.pokemon, 'Abra');
+    assert.strictEqual(mutRun.level, 6);
+    assert.strictEqual(mutRun.kos, '60');
+    assert.strictEqual(mutRun.biome, 'Rocky Desert');
+    assert.strictEqual(mutRun.zoneLabel, 'Zone 1/3');
+    assert.strictEqual(mutRun.tier, 'Stampede · Hard');
+    assert.strictEqual(mutRun.weather, '');
+    assert.strictEqual(mutRun.runMs, 52000);
+  });
+  const relayRun = await stateOf('relay-run.html');
+  check('relay run (Ilex Forest, Phase 1/3, Relay, Rain, no evoLevel)', () => {
+    assert.strictEqual(relayRun.screen, 'game');
+    assert.strictEqual(relayRun.pokemon, 'Abra');
+    assert.strictEqual(relayRun.level, 7);
+    assert.strictEqual(relayRun.evoLevel, null);
+    assert.strictEqual(relayRun.kos, '166');
+    assert.strictEqual(relayRun.biome, 'Ilex Forest');
+    assert.strictEqual(relayRun.zoneLabel, 'Phase 1/3');
+    assert.strictEqual(relayRun.tier, 'Relay');
+    assert.strictEqual(relayRun.weather, 'Rain');
+    assert.strictEqual(relayRun.runMs, 24600);
+  });
+  const bossRushRun = await stateOf('boss-rush-run.html');
+  check('boss rush run (#hud.rush -> tier Boss Rush, empty weather)', () => {
+    assert.strictEqual(bossRushRun.screen, 'game');
+    assert.strictEqual(bossRushRun.pokemon, 'Abra');
+    assert.strictEqual(bossRushRun.level, 3);
+    assert.strictEqual(bossRushRun.kos, '4');
+    assert.strictEqual(bossRushRun.biome, 'Storm Pier');
+    assert.strictEqual(bossRushRun.zoneLabel, 'Zone 1/10');
+    assert.strictEqual(bossRushRun.tier, 'Boss Rush');
+    assert.strictEqual(bossRushRun.weather, '');
+    assert.strictEqual(bossRushRun.runMs, 17700);
+  });
+  const coopRun = await stateOf('coop-run.html');
+  check('co-op run (.coop-team -> coop true, teammate names not read)', () => {
+    assert.strictEqual(coopRun.screen, 'game');
+    assert.strictEqual(coopRun.pokemon, 'Abra');
+    assert.strictEqual(coopRun.level, 1);
+    assert.strictEqual(coopRun.kos, '6');
+    assert.strictEqual(coopRun.biome, 'Viridian Forest');
+    assert.strictEqual(coopRun.zoneLabel, 'Zone 1/3');
+    assert.strictEqual(coopRun.tier, 'Normal');
+    assert.strictEqual(coopRun.coop, true);
+    assert.strictEqual(coopRun.weather, '');
+    assert.strictEqual(coopRun.runMs, 20700);
+    assert.ok(!JSON.stringify(coopRun).includes('FakeTeammate'));
+  });
   const coopE = await stateOf('coop-entry.html');
   const coopL = await stateOf('coop-lobby.html');
   check('co-op entry vs lobby', () => {

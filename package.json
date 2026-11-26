@@ -5,11 +5,12 @@
   "private": true,
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": ">=20.12"
   },
   "scripts": {
     "start": "node helper/server.js",
-    "test": "node test/parser.test.js && node test/e2e.test.js",
+    "test": "node test/helper.test.js && node test/parser.test.js && node test/e2e.test.js",
+    "test:helper": "node test/helper.test.js",
     "test:parser": "node test/parser.test.js",
     "test:e2e": "node test/e2e.test.js",
     "build:exe": "node scripts/build-exe.js"

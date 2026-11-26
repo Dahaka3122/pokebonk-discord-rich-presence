@@ -25,7 +25,7 @@ A good report saves a lot of back and forth. Please include:
 
 ## Setup
 
-You need [Node.js](https://nodejs.org) 18 or newer.
+You need [Node.js](https://nodejs.org) 20.12 or newer for tests and building the executable (running `helper/server.js` itself works on Node.js 18+).
 
 ```bash
 git clone https://github.com/Dahaka3122/pokebonk-discord-presence.git
@@ -45,6 +45,7 @@ To try your changes in the real game, follow the [installation steps](README.md#
 | `extension/content.js`, `background.js` | Watch the page and forward the state to the helper. Rarely need changes. |
 | `helper/server.js` | Receives the state, validates it (`sanitize`) and builds the Discord activity (`buildActivity`). |
 | `test/fixtures/` | Trimmed copies of the game's real markup used by the tests. |
+| `test/helper.test.js` | Unit and integration tests for the helper (config, HTTP chunking, IPC safety, sanitization). |
 | `test/parser.test.js` | Runs the parser against the fixtures in a real browser. |
 | `test/e2e.test.js` | Runs the extension and helper against a fake Discord and checks the exact payloads. |
 
