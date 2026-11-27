@@ -273,6 +273,12 @@ async function waitFor(pred, what, ms = 15000) {
     assert.ok(evm.assets.large_image.endsWith('/1.png'));
     assert.strictEqual(evm.assets.large_text, 'Mewtwo Strikes Back');
 
+    const br = await swap('boss-rush-run.html');
+    show('7b2) Boss Rush run (Mewtwo Strikes Back):', br);
+    assert.strictEqual(br.details, 'Abra · Lv. 3 · K.Os 4');
+    assert.strictEqual(br.state, 'Storm Pier · Zone 1/10 · Boss Rush');
+    assert.ok(age(br) > 15 && age(br) < 45, 'got ' + age(br));
+
     const exp = await swap('expedition-menu.html');
     show('7c) Expedition mode menu:', exp);
     assert.strictEqual(exp.details, 'Preparing for The Great Expedition');
@@ -300,25 +306,6 @@ async function waitFor(pred, what, ms = 15000) {
     assert.strictEqual(mutr.state, 'Rocky Desert · Zone 1/3 · Stampede · Hard');
     assert.ok(age(mutr) > 50 && age(mutr) < 80, 'got ' + age(mutr));
 
-    const rel = await swap('relay-run.html');
-    show('7g) Relay run:', rel);
-    assert.strictEqual(rel.details, 'Abra · Lv. 7 · K.Os 166');
-    assert.strictEqual(rel.state, 'Ilex Forest · Phase 1/3 · Relay · Rain');
-    assert.ok(age(rel) > 22 && age(rel) < 55, 'got ' + age(rel));
-
-    const br = await swap('boss-rush-run.html');
-    show('7h) Boss Rush run (Mewtwo Strikes Back):', br);
-    assert.strictEqual(br.details, 'Abra · Lv. 3 · K.Os 4');
-    assert.strictEqual(br.state, 'Storm Pier · Zone 1/10 · Boss Rush');
-    assert.ok(age(br) > 15 && age(br) < 45, 'got ' + age(br));
-
-    const coopRun = await swap('coop-run.html');
-    show('7i) Co-op run:', coopRun);
-    assert.strictEqual(coopRun.details, 'Abra · Lv. 1 · K.Os 6');
-    assert.strictEqual(coopRun.state, 'Viridian Forest · Zone 1/3 · Co-op · Normal');
-    assert.ok(age(coopRun) > 18 && age(coopRun) < 50, 'got ' + age(coopRun));
-    assert.ok(!JSON.stringify(coopRun).includes('FakeTeammate'), 'teammate names must not leak');
-
     const ce = await swap('coop-entry.html');
     assert.strictEqual(ce.details, 'Setting up a Co-op run');
     const cl = await swap('coop-lobby.html');
@@ -326,11 +313,24 @@ async function waitFor(pred, what, ms = 15000) {
     assert.strictEqual(cl.details, 'Waiting in a Co-op lobby');
     assert.ok(!JSON.stringify(cl).includes('ABCD') && !JSON.stringify(cl).includes('FakePlayerOne'), 'room code / names must not leak');
 
+    const coopRun = await swap('coop-run.html');
+    show('8b) Co-op run:', coopRun);
+    assert.strictEqual(coopRun.details, 'Abra · Lv. 1 · K.Os 6');
+    assert.strictEqual(coopRun.state, 'Viridian Forest · Zone 1/3 · Co-op · Normal');
+    assert.ok(age(coopRun) > 18 && age(coopRun) < 50, 'got ' + age(coopRun));
+    assert.ok(!JSON.stringify(coopRun).includes('FakeTeammate'), 'teammate names must not leak');
+
     const lb = await swap('other-lab.html');
     show('9) Any other menu (Lab):', lb);
     assert.strictEqual(lb.details, 'Browsing the menus');
     assert.strictEqual(lb.state, 'Between runs');
     assert.ok(lb.assets.large_image.endsWith('/63.png'));
+
+    const rel = await swap('relay-run.html');
+    show('9b) Relay run:', rel);
+    assert.strictEqual(rel.details, 'Abra · Lv. 7 · K.Os 166');
+    assert.strictEqual(rel.state, 'Ilex Forest · Phase 1/3 · Relay · Rain');
+    assert.ok(age(rel) > 22 && age(rel) < 55, 'got ' + age(rel));
 
     // Closing the tab -> presence cleared immediately (strictly faster than STALE_MS=8000)
     const m = received.length;

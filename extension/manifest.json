@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Pokebonk Discord Presence",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Shows your current Pokémon, level, map and more from PokéBonk as a Discord Rich Presence.",
   "host_permissions": ["http://127.0.0.1:8765/*"],
   "background": { "service_worker": "background.js" },
